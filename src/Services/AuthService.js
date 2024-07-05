@@ -1,20 +1,50 @@
-// Middleware function to verify user authorization
-function verifyUser(req, res, next) {
-  // Extract the authorization header value
-  const password = req.headers.authorization;
-
-  // Check if the extracted password matches the expected value
-  if (password === "123") {
-    // If the password matches, call the next middleware function
-    next();
-    return; // Return to ensure no further code in the function is executed
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
+const authenticate = (req, res, next) => {
+  const token = req.headers.authorization;
+  const { valid, decodedToken } = validateToken(token);
+  if (!valid) {
+    return res.status(401).json({
+      message: "unauthorized"
+    });
   }
+  req.userId = decodedToken.userId;
+  req.role = decodedToken.role;
+  next();
+};
 
-  // If the password does not match, send a 401 Unauthorized response
-  return res.status(401).json({
-    message: "unauthorized",
-  });
-}
+const authorize = allowedRoles => (req, res, next) => {
+  if (!allowedRoles.includes(req.role)) {
+    return res.status(401).json({
+      message: "action is not allowed for this role"
+    });
+  }
+  next();
+};
 
-// Export the verifyUser middleware function
-module.exports = verifyUser;
+const validateToken = token => {
+  try {
+    const secretKey = process.env.SECRET_KEY;
+    const decodedToken = jwt.verify(token, secretKey);
+    return {
+      valid: true,
+      decodedToken
+    };
+  } catch (err) {
+    console.log(err);
+    return {
+      valid: false
+    };
+  }
+};
+
+const generateToken = payload => {
+  const secretKey = process.env.SECRET_KEY;
+  const token = jwt.sign(payload, secretKey);
+  return token;
+};
+module.exports = {
+  authenticate,
+  generateToken,
+  authorize
+};
